@@ -1,9 +1,11 @@
 import axios from "axios";
 import { useEffect, useState } from "react";
+import { useNavigate } from "react-router-dom";
 
 import type { Iptuu } from "./Tipos/Iptuu";
 
 function Gerenciamento() {
+  const navigate = useNavigate();
 
   const [user, setUser] = useState<{
     id: number;
@@ -24,6 +26,17 @@ function Gerenciamento() {
       try {
 
         const usuarioStorage = localStorage.getItem("user");
+
+        const tokenStorage = localStorage.getItem("token");
+        const ehAdmin = await axios.post(
+                "/usuario/verificar-permissao",
+                { tokenStorage }
+            );
+        if (!ehAdmin.data.success) {
+          alert("Você não tem permissão para acessar esta página.");
+          navigate("/dashboard");
+          return;
+        }
 
         if (!usuarioStorage) {
           console.error("Usuário não encontrado no localStorage");
@@ -49,10 +62,15 @@ function Gerenciamento() {
 
       } catch (error) {
 
-        console.error(
-          "Erro ao buscar dados",
-          error
-        );
+        if (axios.isAxiosError(error)) {
+
+        if (error.response?.status === 403) {
+            alert("Você não tem permissão para acessar esta página.");
+            navigate("/dashboard");
+            return;
+        }
+
+    }
 
       }
 
@@ -61,7 +79,7 @@ function Gerenciamento() {
 
     buscarDados();
 
-  }, []);
+  }, [navigate]);
 
 
   const atualizarIptu = async (

@@ -1,7 +1,7 @@
 services:
   postgres:
     image: postgres:16
-    container_name: postgres-aula
+    container_name: postgres-aula-seguranca
     restart: always
     environment:
       POSTGRES_DB: aula_db
