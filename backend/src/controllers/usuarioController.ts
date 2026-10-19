@@ -15,37 +15,47 @@ export const payloadUsuario = async (req: Request, res: Response) => {
 };
 
 
+
 export const login = async (req: Request, res: Response) => {
     const { email, password } = req.body;
-    
-    const query =
-        `SELECT * FROM usuario WHERE email = $1 AND senha = $2`;
 
-    console.log(`Query Executada: ${query}`);
+    const query = `
+        SELECT * FROM usuario
+        WHERE email = $1 AND senha = $2
+    `;
 
     const result = await db.query(query, [email, password]);
 
     if (result.rowCount && result.rowCount > 0) {
+        const usuario = result.rows[0];
+
         const token = jwt.sign(
             {
-                id: result.rows[0].id,
-                nome: result.rows[0].nome,
-                email: result.rows[0].email,
-                tipo: result.rows[0].tipo_usuario_id
-            }, (global as any).segredoJwt);
-        res.cookie("token", token, { httpOnly: true, sameSite: "strict" });
+                id: usuario.id,
+                nome: usuario.nome,
+                email: usuario.email,
+                tipo: usuario.tipo_usuario_id
+            },
+            (global as any).segredoJwt
+        );
 
-     
-        res.json({
-            success: true,
+        res.cookie("token", token, {
+            httpOnly: true,
+            sameSite: "strict"
         });
 
-    } else {
-        res.status(401).json({
-            success: false,
-            message: "Falha no login"
+        const csrfToken = res.locals.csrfToken;
+
+        return res.json({
+            success: true,
+            cryptoToken: csrfToken
         });
     }
+
+    return res.status(401).json({
+        success: false,
+        message: "Falha no login"
+    });
 };
 
 
@@ -121,33 +131,15 @@ export const novoLogin = async (req: Request, res: Response) => {
 
 
 
+
 export const atualizarIptu = async (req: Request, res: Response) => {
-    const token = req.cookies?.token;
-    
-     if (!token) {
-        res.status(401).json({
-            success: false,
-            message: "Token não fornecido"
-        });
-        return;
-    }
-
-    const payload = ValidarToken(token);
-
-    if (!payload) {
-        res.status(401).json({
-            success: false,
-            message: "Token inválido"
-        });
-        return;
-    }
+    const payload = res.locals.payload;
 
     if (payload.tipo !== 1) {
-        res.status(403).json({
+        return res.status(403).json({
             success: false,
             message: "Acesso negado. Usuário não é admin"
         });
-        return;
     }
 
     const { usuarioId, novoValor } = req.body;
@@ -158,115 +150,71 @@ export const atualizarIptu = async (req: Request, res: Response) => {
         WHERE usuario_id = $2
     `;
 
-    console.log("Atualizando IPTU do usuário:", usuarioId);
-
     try {
         const result = await db.query(query, [novoValor, usuarioId]);
 
-        res.json({
+        return res.json({
             message: "IPTU atualizado",
             linhasAtualizadas: result.rowCount
         });
     } catch (err: any) {
-        res.status(500).json({
+        return res.status(500).json({
             error: err.message
         });
     }
 };
+
+
 
 
 export const getIptuPorIdUsuario = async (req: Request, res: Response) => {
-    const token = req.cookies?.token;
-    if (!token) {
-        res.status(401).json({
-            success: false,
-            message: "Token não fornecido"
-        });
-        return;
-    }
-    const payload = ValidarToken(token);
-    if(!payload) {
-        res.status(401).json({
-            success: false,
-            message: "Token inválido"
-        });
-        return;
-    }
+    const payload = res.locals.payload;
 
-    const query =
-        `SELECT * FROM iptu WHERE usuario_id = $1`;
-
-    console.log("Buscando IPTU do usuário:", payload.id);
+    const query = `
+        SELECT * FROM iptu
+        WHERE usuario_id = $1
+    `;
 
     try {
-
         const result = await db.query(query, [payload.id]);
 
-      
-        res.json({
+        return res.json({
             iptu: result.rows
         });
-
     } catch (err: any) {
-
-        res.status(500).json({
+        return res.status(500).json({
             error: err.message
         });
     }
 };
 
 
-export const getIptus = async (
-    req: Request,
-    res: Response
-) => {
-    const token = req.cookies?.token;
 
-    if (!token) {
-        res.status(401).json({
-            success: false,
-            message: "Token não fornecido"
-        });
-        return;
-    }
-
-    const payload = ValidarToken(token);
-
-    if (!payload) {
-        res.status(401).json({
-            success: false,
-            message: "Token inválido"
-        });
-        return;
-    }
+export const getIptus = async (req: Request, res: Response) => {
+    const payload = res.locals.payload;
 
     if (payload.tipo !== 1) {
-        res.status(403).json({
+        return res.status(403).json({
             success: false,
             message: "Acesso negado. Usuário não é admin"
         });
-        return;
     }
 
     const query = `SELECT * FROM iptu`;
 
-    console.log(`Query Executada: ${query}`);
-
     try {
-
         const result = await db.query(query);
 
-        res.json({
+        return res.json({
             iptu: result.rows
         });
-
     } catch (err: any) {
-
-        res.status(500).json({
+        return res.status(500).json({
             error: err.message
         });
     }
 };
+
 
 
 export const getQRCodeOrCodBarras = async (

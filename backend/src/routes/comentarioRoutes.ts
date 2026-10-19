@@ -1,10 +1,11 @@
 import { Router } from "express";
 import { criarComentario, listarComentarios } from "../controllers/comentarioController";
-import authMiddleware from "../middleware/authMiddleware";
+import { authMiddleware } from "../middleware/authMiddleware";
+import { csrfTokenMiddleware } from "../middleware/csrfTokenMiddleware";
 
 const router = Router();
 
-router.post("/", authMiddleware, criarComentario);
-router.get("/", authMiddleware, listarComentarios);
+router.post("/", authMiddleware(), csrfTokenMiddleware, criarComentario);
+router.get("/", authMiddleware(), csrfTokenMiddleware, listarComentarios);
 
 export default router;

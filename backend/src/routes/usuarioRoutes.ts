@@ -37,8 +37,8 @@ router.get(
 
 router.get(
     "/payload-usuario",
-    authMiddleware(),
     csrfGerarRecuperarTokenMiddleware,
+    authMiddleware(),
     payloadUsuario
 );
 
