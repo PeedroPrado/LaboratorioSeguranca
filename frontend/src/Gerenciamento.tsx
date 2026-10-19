@@ -45,7 +45,8 @@ function Gerenciamento() {
         const response = await axios.get<{
           iptu: Iptuu[]
         }>(
-          "/usuario/iptus"
+          "/usuario/iptus",
+          { withCredentials: true}
         );
 
         setIptus(response.data.iptu);
@@ -53,6 +54,11 @@ function Gerenciamento() {
       } catch (error) {
 
          if (axios.isAxiosError(error)) {
+
+          if (error.response?.status === 401) {
+           navigate("/");
+          return;
+        }
 
         if (error.response?.status === 403) {
             alert("Você não tem permissão para acessar esta página.");
@@ -93,7 +99,8 @@ function Gerenciamento() {
       const response = await axios.get<{
         iptu: Iptuu[]
       }>(
-        "/usuario/iptus"
+        "/usuario/iptus",
+        {withCredentials: true}
       );
 
       setIptus(response.data.iptu);

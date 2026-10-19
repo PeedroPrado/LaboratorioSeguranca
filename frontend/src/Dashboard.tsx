@@ -47,7 +47,7 @@ function Dashboard() {
         );
         
         if (!response.data.success) {
-          console.error("Usuário não encontrado no localStorage");
+          console.error("Não foi possível obter os dados do usuário");
           return;
         }
 
@@ -55,7 +55,8 @@ function Dashboard() {
 
 
         const responseIptu = await axios.get<{ iptu: Iptuu[] }>(
-          "usuario/iptu-por-usuario",{withCredentials: true}
+          "usuario/iptu-por-usuario",
+          {withCredentials: true}
         );
 
         setIptu(responseIptu.data.iptu[0]);
@@ -94,48 +95,35 @@ function Dashboard() {
   }, []);
 
 
-  const enviarComentario = async () => {
 
+const enviarComentario = async () => {
     if (!novoComentario.trim()) return;
 
-
     try {
+        await axios.post(
+            "/comentario",
+            {
+                texto: novoComentario
+            },
+            {
+                withCredentials: true
+            }
+        );
 
-      const usuarioStorage = localStorage.getItem("user");
+        const response = await axios.get(
+            "/comentario"
+        );
 
-      if (!usuarioStorage) {
-        console.error("Usuário não encontrado");
-        return;
-      }
-
-      const usuario = JSON.parse(usuarioStorage);
-
-
-      await axios.post(
-        "/comentario",
-        {
-          texto: novoComentario,
-          usuarioId: usuario.id
-        }
-      );
-
-
-      const response = await axios.get(
-        "/comentario"
-      );
-
-      setComentarios(response.data);
-
-      setNovoComentario("");
+        setComentarios(response.data);
+        setNovoComentario("");
 
     } catch (error) {
-
-      console.error(
-        "Erro ao enviar comentário",
-        error
-      );
+        console.error(
+            "Erro ao enviar comentário",
+            error
+        );
     }
-  };
+};
 
 
   const buscarCodigo = async () => {

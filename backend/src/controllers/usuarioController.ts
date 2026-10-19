@@ -2,29 +2,15 @@ import { Request, Response } from "express";
 import db from "../database";
 import jwt from "jsonwebtoken";
 import ValidarToken from "../Services/jwtServices";
-import { randomBytes } from "node:crypto";
+
 
 
 export const payloadUsuario = async (req: Request, res: Response) => {
-    const token = req.cookies.token;
-
-    if (!token) {
-        res.status(401).json({
-            success: false,
-            message: "Token não fornecido"
-        });
-        return;
-    }
-    const payload = ValidarToken(token);
-
-    if(!payload)
-         res.status(401).json({
-            success: false,
-            message: "Token inválido" });
     return res.json({
         success: true,
         message: "Payload do usuário obtido com sucesso",
-        payload: payload
+        payload: res.locals.payload,
+        cryptoToken: res.locals.csrfToken
     });
 };
 
@@ -48,8 +34,8 @@ export const login = async (req: Request, res: Response) => {
                 tipo: result.rows[0].tipo_usuario_id
             }, (global as any).segredoJwt);
         res.cookie("token", token, { httpOnly: true, sameSite: "strict" });
-       const csrfToken = randomBytes(32).toString("hex");
-        res.session.csrfToken = csrfToken;
+
+     
         res.json({
             success: true,
         });
@@ -67,38 +53,43 @@ export const novoLogin = async (req: Request, res: Response) => {
     const { email, password, nome } = req.body;
 
     const queryNomeIpuExiste =
-        `SELECT * FROM iptu WHERE nome = '${nome}'`;
+        `SELECT * FROM iptu WHERE nome = $1`;
 
     console.log(`Query Executada: ${queryNomeIpuExiste}`);
 
-    const iptuResult = await db.query(queryNomeIpuExiste);
+    const iptuResult = await db.query(queryNomeIpuExiste, [nome]);
 
     if (iptuResult.rowCount && iptuResult.rowCount > 0) {
 
         const query =
             `INSERT INTO usuario (email, senha, nome, tipo_usuario_id)
-             VALUES ('${email}', '${password}', '${nome}', 3)`;
+             VALUES ($1, $2, $3, 3)
+            RETURNING id, email, nome, tipo_usuario_id`;
 
         console.log(`Query Executada: ${query}`);
 
-        const result = await db.query(query);
+        const result = await db.query(query, [email, password, nome]);
+
 
         const queryIdUsuario =
             `SELECT id FROM usuario
-             WHERE email = '${email}' AND senha = '${password}'`;
+            WHERE email = $1 AND senha = $2`;
 
         console.log(`Query Executada: ${queryIdUsuario}`);
 
-        const resultIdUsuario = await db.query(queryIdUsuario);
+        const resultIdUsuario = await db.query(queryIdUsuario, [email, password]);
 
         const queryUpdateTabelaIptu =
             `UPDATE iptu
-             SET usuario_id = '${resultIdUsuario.rows[0].id}'
-             WHERE nome = '${nome}'`;
+            SET usuario_id = $1
+            WHERE nome = $2`;
 
         console.log(`Query Executada: ${queryUpdateTabelaIptu}`);
 
-        const resultUpdate = await db.query(queryUpdateTabelaIptu);
+        const resultUpdate = await db.query(
+            queryUpdateTabelaIptu,
+            [resultIdUsuario.rows[0].id, nome]
+        );
 
         if (
             result.rowCount &&
@@ -129,9 +120,20 @@ export const novoLogin = async (req: Request, res: Response) => {
 };
 
 
+
 export const atualizarIptu = async (req: Request, res: Response) => {
-    const token = req.cookies.token;
+    const token = req.cookies?.token;
+    
+     if (!token) {
+        res.status(401).json({
+            success: false,
+            message: "Token não fornecido"
+        });
+        return;
+    }
+
     const payload = ValidarToken(token);
+
     if (!payload) {
         res.status(401).json({
             success: false,
@@ -139,32 +141,32 @@ export const atualizarIptu = async (req: Request, res: Response) => {
         });
         return;
     }
-    if(payload && payload.tipo !== 1) {
+
+    if (payload.tipo !== 1) {
         res.status(403).json({
             success: false,
             message: "Acesso negado. Usuário não é admin"
         });
         return;
     }
-    const {
-        usuarioId,
-        novoValor
-    } = req.body;
 
-    const query =
-        `UPDATE iptu
-         SET valor = '${novoValor}'
-         WHERE usuario_id = '${usuarioId}'`;
+    const { usuarioId, novoValor } = req.body;
 
-    console.log(`Query Executada: ${query}`);
+    const query = `
+        UPDATE iptu
+        SET valor = $1
+        WHERE usuario_id = $2
+    `;
+
+    console.log("Atualizando IPTU do usuário:", usuarioId);
 
     try {
-        await db.query(query);
+        const result = await db.query(query, [novoValor, usuarioId]);
 
         res.json({
-            message: "IPTU atualizado"
+            message: "IPTU atualizado",
+            linhasAtualizadas: result.rowCount
         });
-
     } catch (err: any) {
         res.status(500).json({
             error: err.message
@@ -174,7 +176,7 @@ export const atualizarIptu = async (req: Request, res: Response) => {
 
 
 export const getIptuPorIdUsuario = async (req: Request, res: Response) => {
-    const token = req.cookies.token;
+    const token = req.cookies?.token;
     if (!token) {
         res.status(401).json({
             success: false,
@@ -192,16 +194,15 @@ export const getIptuPorIdUsuario = async (req: Request, res: Response) => {
     }
 
     const query =
-        `SELECT * FROM iptu WHERE usuario_id = '${payload.id}'`;
+        `SELECT * FROM iptu WHERE usuario_id = $1`;
 
-    console.log(`Query Executada: ${query}`);
+    console.log("Buscando IPTU do usuário:", payload.id);
 
     try {
 
-        const result = await db.query(query);
+        const result = await db.query(query, [payload.id]);
 
-        console.log(`Retorno: ${JSON.stringify(result.rows)}`);
-
+      
         res.json({
             iptu: result.rows
         });
@@ -219,8 +220,34 @@ export const getIptus = async (
     req: Request,
     res: Response
 ) => {
+    const token = req.cookies?.token;
 
-    
+    if (!token) {
+        res.status(401).json({
+            success: false,
+            message: "Token não fornecido"
+        });
+        return;
+    }
+
+    const payload = ValidarToken(token);
+
+    if (!payload) {
+        res.status(401).json({
+            success: false,
+            message: "Token inválido"
+        });
+        return;
+    }
+
+    if (payload.tipo !== 1) {
+        res.status(403).json({
+            success: false,
+            message: "Acesso negado. Usuário não é admin"
+        });
+        return;
+    }
+
     const query = `SELECT * FROM iptu`;
 
     console.log(`Query Executada: ${query}`);
