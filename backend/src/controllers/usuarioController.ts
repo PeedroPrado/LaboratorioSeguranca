@@ -1,32 +1,37 @@
 import { Request, Response } from "express";
 import db from "../database";
 import jwt from "jsonwebtoken";
-import ValidarToken from "../Services/jwtServices"
+import ValidarToken from "../Services/jwtServices";
+import { randomBytes } from "node:crypto";
 
-export const ehAdmin = async (req: Request, res: Response) => {
 
-    const {
-        tokenStorage
-    } = req.body as { tokenStorage: string };
-    const payload = ValidarToken(tokenStorage);
+export const payloadUsuario = async (req: Request, res: Response) => {
+    const token = req.cookies.token;
+
+    if (!token) {
+        res.status(401).json({
+            success: false,
+            message: "Token não fornecido"
+        });
+        return;
+    }
+    const payload = ValidarToken(token);
 
     if(!payload)
          res.status(401).json({
             success: false,
             message: "Token inválido" });
-    if(payload && payload.tipo !== 1)
-        res.status(403).json({
-            success: false,
-            message: "Acesso negado. Usuário não é admin" });   
     return res.json({
         success: true,
-        message: "Usuário é admin"
+        message: "Payload do usuário obtido com sucesso",
+        payload: payload
     });
 };
 
+
 export const login = async (req: Request, res: Response) => {
     const { email, password } = req.body;
-
+    
     const query =
         `SELECT * FROM usuario WHERE email = $1 AND senha = $2`;
 
@@ -35,19 +40,18 @@ export const login = async (req: Request, res: Response) => {
     const result = await db.query(query, [email, password]);
 
     if (result.rowCount && result.rowCount > 0) {
-
-         const token = jwt.sign(
+        const token = jwt.sign(
             {
                 id: result.rows[0].id,
                 nome: result.rows[0].nome,
                 email: result.rows[0].email,
                 tipo: result.rows[0].tipo_usuario_id
             }, (global as any).segredoJwt);
-        
+        res.cookie("token", token, { httpOnly: true, sameSite: "strict" });
+       const csrfToken = randomBytes(32).toString("hex");
+        res.session.csrfToken = csrfToken;
         res.json({
             success: true,
-            user: result.rows[0],
-            token: token
         });
 
     } else {
@@ -63,38 +67,38 @@ export const novoLogin = async (req: Request, res: Response) => {
     const { email, password, nome } = req.body;
 
     const queryNomeIpuExiste =
-        `SELECT * FROM iptu WHERE nome = $1`;
+        `SELECT * FROM iptu WHERE nome = '${nome}'`;
 
     console.log(`Query Executada: ${queryNomeIpuExiste}`);
 
-    const iptuResult = await db.query(queryNomeIpuExiste, [nome]);
+    const iptuResult = await db.query(queryNomeIpuExiste);
 
     if (iptuResult.rowCount && iptuResult.rowCount > 0) {
 
         const query =
             `INSERT INTO usuario (email, senha, nome, tipo_usuario_id)
-             VALUES ($1, $2, $3, 3)`;
+             VALUES ('${email}', '${password}', '${nome}', 3)`;
 
         console.log(`Query Executada: ${query}`);
 
-        const result = await db.query(query, [email, password, nome]);
+        const result = await db.query(query);
 
         const queryIdUsuario =
             `SELECT id FROM usuario
-             WHERE email = $1 AND senha = $2`;
+             WHERE email = '${email}' AND senha = '${password}'`;
 
         console.log(`Query Executada: ${queryIdUsuario}`);
 
-        const resultIdUsuario = await db.query(queryIdUsuario, [email, password]);
+        const resultIdUsuario = await db.query(queryIdUsuario);
 
         const queryUpdateTabelaIptu =
             `UPDATE iptu
              SET usuario_id = '${resultIdUsuario.rows[0].id}'
-             WHERE nome = $1`;
+             WHERE nome = '${nome}'`;
 
         console.log(`Query Executada: ${queryUpdateTabelaIptu}`);
 
-        const resultUpdate = await db.query(queryUpdateTabelaIptu, [nome]);
+        const resultUpdate = await db.query(queryUpdateTabelaIptu);
 
         if (
             result.rowCount &&
@@ -126,7 +130,22 @@ export const novoLogin = async (req: Request, res: Response) => {
 
 
 export const atualizarIptu = async (req: Request, res: Response) => {
-
+    const token = req.cookies.token;
+    const payload = ValidarToken(token);
+    if (!payload) {
+        res.status(401).json({
+            success: false,
+            message: "Token inválido"
+        });
+        return;
+    }
+    if(payload && payload.tipo !== 1) {
+        res.status(403).json({
+            success: false,
+            message: "Acesso negado. Usuário não é admin"
+        });
+        return;
+    }
     const {
         usuarioId,
         novoValor
@@ -134,13 +153,13 @@ export const atualizarIptu = async (req: Request, res: Response) => {
 
     const query =
         `UPDATE iptu
-         SET valor = $1
-         WHERE usuario_id = $2`;
+         SET valor = '${novoValor}'
+         WHERE usuario_id = '${usuarioId}'`;
 
     console.log(`Query Executada: ${query}`);
 
     try {
-        await db.query(query, [novoValor, usuarioId]);
+        await db.query(query);
 
         res.json({
             message: "IPTU atualizado"
@@ -154,22 +173,32 @@ export const atualizarIptu = async (req: Request, res: Response) => {
 };
 
 
-export const getIptuPorIdUsuario = async (
-    req: Request,
-    res: Response
-) => {
+export const getIptuPorIdUsuario = async (req: Request, res: Response) => {
+    const token = req.cookies.token;
+    if (!token) {
+        res.status(401).json({
+            success: false,
+            message: "Token não fornecido"
+        });
+        return;
+    }
+    const payload = ValidarToken(token);
+    if(!payload) {
+        res.status(401).json({
+            success: false,
+            message: "Token inválido"
+        });
+        return;
+    }
 
-    const {
-        usuarioId,
-    } = req.body;
     const query =
-        `SELECT * FROM iptu WHERE usuario_id = $1`;
+        `SELECT * FROM iptu WHERE usuario_id = '${payload.id}'`;
 
     console.log(`Query Executada: ${query}`);
 
     try {
 
-        const result = await db.query(query, [usuarioId]);
+        const result = await db.query(query);
 
         console.log(`Retorno: ${JSON.stringify(result.rows)}`);
 
@@ -239,4 +268,3 @@ export const getQRCodeOrCodBarras = async (
         ${codigoHtml}
     `);
 };
-

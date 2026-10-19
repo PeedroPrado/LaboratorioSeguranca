@@ -41,29 +41,24 @@ function Dashboard() {
     const buscarDados = async () => {
 
       try {
-
-        const usuarioStorage = localStorage.getItem("user");
-
-        if (!usuarioStorage) {
+        const response = await axios.get(
+          "/usuario/payload-usuario",
+          { withCredentials: true }
+        );
+        
+        if (!response.data.success) {
           console.error("Usuário não encontrado no localStorage");
           return;
         }
 
-        const usuario = JSON.parse(usuarioStorage);
-
-        console.log("Usuário recuperado do storage:", usuario);
-
-        setUser(usuario);
+        setUser(response.data.payload);
 
 
-        const response = await axios.post<{ iptu: Iptuu[] }>(
-          "usuario/iptu-por-usuario",
-          {
-            usuarioId: usuario.id
-          }
+        const responseIptu = await axios.get<{ iptu: Iptuu[] }>(
+          "usuario/iptu-por-usuario",{withCredentials: true}
         );
 
-        setIptu(response.data.iptu[0]);
+        setIptu(responseIptu.data.iptu[0]);
 
       } catch (error) {
 
@@ -312,11 +307,9 @@ function Dashboard() {
                     O conteúdo vindo do banco é interpretado
                     como HTML pelo navegador.
                   */}
-
                   {comentario.texto}
-                  
                   <div
-                   
+                    
                   />
 
                 </div>
@@ -372,4 +365,3 @@ const styles = {
 
 
 export default Dashboard;
-
