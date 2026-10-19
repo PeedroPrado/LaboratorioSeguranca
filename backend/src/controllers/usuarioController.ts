@@ -41,6 +41,7 @@ export const login = async (req: Request, res: Response) => {
 
         res.cookie("token", token, {
             httpOnly: true,
+            secure: false,
             sameSite: "strict"
         });
 
@@ -65,8 +66,6 @@ export const novoLogin = async (req: Request, res: Response) => {
     const queryNomeIpuExiste =
         `SELECT * FROM iptu WHERE nome = $1`;
 
-    console.log(`Query Executada: ${queryNomeIpuExiste}`);
-
     const iptuResult = await db.query(queryNomeIpuExiste, [nome]);
 
     if (iptuResult.rowCount && iptuResult.rowCount > 0) {
@@ -76,29 +75,18 @@ export const novoLogin = async (req: Request, res: Response) => {
              VALUES ($1, $2, $3, 3)
             RETURNING id, email, nome, tipo_usuario_id`;
 
-        console.log(`Query Executada: ${query}`);
-
         const result = await db.query(query, [email, password, nome]);
 
 
-        const queryIdUsuario =
-            `SELECT id FROM usuario
-            WHERE email = $1 AND senha = $2`;
-
-        console.log(`Query Executada: ${queryIdUsuario}`);
-
-        const resultIdUsuario = await db.query(queryIdUsuario, [email, password]);
 
         const queryUpdateTabelaIptu =
             `UPDATE iptu
             SET usuario_id = $1
             WHERE nome = $2`;
 
-        console.log(`Query Executada: ${queryUpdateTabelaIptu}`);
-
         const resultUpdate = await db.query(
             queryUpdateTabelaIptu,
-            [resultIdUsuario.rows[0].id, nome]
+            [result.rows[0].id, nome]
         );
 
         if (
@@ -115,9 +103,9 @@ export const novoLogin = async (req: Request, res: Response) => {
             });
 
         } else {
-            res.status(401).json({
+            res.status(500).json({
                 success: false,
-                message: "Falha no login"
+                message: "Não foi possível concluir o cadastro"
             });
         }
 
@@ -153,7 +141,15 @@ export const atualizarIptu = async (req: Request, res: Response) => {
     try {
         const result = await db.query(query, [novoValor, usuarioId]);
 
+        if (!result.rowCount) {
+            return res.status(404).json({
+                success: false,
+                message: "Nenhum IPTU encontrado para esse usuário"
+            });
+        }
+
         return res.json({
+            success: true,
             message: "IPTU atualizado",
             linhasAtualizadas: result.rowCount
         });
@@ -224,22 +220,27 @@ export const getQRCodeOrCodBarras = async (
 
     const tipo = req.query.tipo as string;
 
+    if (tipo !== "codigoDeBarras" && tipo !== "qrcode") {
+    return res.status(400).json({
+        success: false,
+        message: "Tipo de código inválido"
+    });
+}
 
     let codigoHtml = "";
 
     if (tipo === "codigoDeBarras") {
-
-        codigoHtml =
-            `<img src="https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=123456789" />`;
-
-    } else if (tipo === "qrcode") {
+    codigoHtml =
+        `<img src="https://barcode.tec-it.com/barcode.ashx?data=123456789&code=Code128&translate-esc=true" alt="Código de barras" />`;
+}
+    else if (tipo === "qrcode") {
 
         codigoHtml =
             `<img src="https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=QRCodeDemo" />`;
     }
 
-    res.send(`
-        <h2>Tipo selecionado: ${tipo}</h2>
-        ${codigoHtml}
-    `);
+    return res.send(`
+    <h2>Tipo selecionado: ${tipo}</h2>
+    ${codigoHtml}
+`);
 };

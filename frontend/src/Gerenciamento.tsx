@@ -17,6 +17,7 @@ function Gerenciamento() {
   const [iptus, setIptus] = useState<Iptuu[]>([]);
   const [novoValor, setNovoValor] = useState<{ [key: number]: number }>({});
   const [menuAberto, setMenuAberto] = useState(false);
+  const [csrfToken, setCsrfToken] = useState("");
 
 
   useEffect(() => {
@@ -29,6 +30,9 @@ function Gerenciamento() {
           "/usuario/payload-usuario",
           { withCredentials: true }
         );
+
+        const token = responsePayload.data.cryptoToken;
+        setCsrfToken(responsePayload.data.cryptoToken);
 
         if (!responsePayload.data.success) {
           alert("Você não tem permissão para acessar esta página.");
@@ -46,7 +50,12 @@ function Gerenciamento() {
           iptu: Iptuu[]
         }>(
           "/usuario/iptus",
-          { withCredentials: true}
+          {
+            withCredentials: true,
+            headers: {
+             "x-csrf-token": token
+            }
+          }
         );
 
         setIptus(response.data.iptu);
@@ -88,7 +97,13 @@ function Gerenciamento() {
         {
           usuarioId: usuarioId,
           novoValor: novoValor[usuarioId]
-        }, {withCredentials: true}
+        },
+        {
+          withCredentials: true,
+          headers: {
+            "x-csrf-token": csrfToken
+          }
+        }
       );
 
 
@@ -100,7 +115,12 @@ function Gerenciamento() {
         iptu: Iptuu[]
       }>(
         "/usuario/iptus",
-        {withCredentials: true}
+        {
+          withCredentials: true,
+          headers: {
+            "x-csrf-token": csrfToken
+          }
+        }
       );
 
       setIptus(response.data.iptu);

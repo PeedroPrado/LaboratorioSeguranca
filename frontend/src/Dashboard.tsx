@@ -23,6 +23,7 @@ function Dashboard() {
   const [novoComentario, setNovoComentario] = useState("");
   const [tipoCodigo, setTipoCodigo] = useState("codigoDeBarras");
   const [htmlRetorno, setHtmlRetorno] = useState("");
+  const [csrfToken, setCsrfToken] = useState("");
 
 
   const handleGerenciamento = async (e: React.FormEvent) => {
@@ -45,6 +46,8 @@ function Dashboard() {
           "/usuario/payload-usuario",
           { withCredentials: true }
         );
+        const token = response.data.cryptoToken;
+        setCsrfToken(token);
         
         if (!response.data.success) {
           console.error("Não foi possível obter os dados do usuário");
@@ -55,8 +58,11 @@ function Dashboard() {
 
 
         const responseIptu = await axios.get<{ iptu: Iptuu[] }>(
-          "usuario/iptu-por-usuario",
-          {withCredentials: true}
+          "/usuario/iptu-por-usuario",
+          {
+            withCredentials: true,
+             headers: { "x-csrf-token": token }
+          }
         );
 
         setIptu(responseIptu.data.iptu[0]);
@@ -105,9 +111,12 @@ const enviarComentario = async () => {
             {
                 texto: novoComentario
             },
-            {
-                withCredentials: true
+          {
+            withCredentials: true,
+            headers: {
+              "x-csrf-token": csrfToken
             }
+          }
         );
 
         const response = await axios.get(
@@ -129,9 +138,14 @@ const enviarComentario = async () => {
   const buscarCodigo = async () => {
 
     const response = await axios.get(
-      "usuario/codigo-qr-ou-barra?tipo=" + tipoCodigo
-    );
-
+    "/usuario/codigo-qr-ou-barra?tipo=" + tipoCodigo,
+    {
+        withCredentials: true,
+        headers: {
+            "x-csrf-token": csrfToken
+        }
+    }
+);
     setHtmlRetorno(response.data);
   };
 

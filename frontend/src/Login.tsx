@@ -20,7 +20,7 @@ function Login() {
                 { email, password }, {withCredentials: true}
             );
 
-            if(!response.data.success) {
+            if (!response.data.success) {
                 setMessage("Erro no login");
             } else {
                 navigate("/dashboard");
@@ -41,7 +41,8 @@ function Login() {
             
             const response = await axios.post(
                 "/usuario/novo-login",
-                { email, password, nome }
+                { email, password, nome },
+                { withCredentials: true }
             );
             
             if (response.data.success) {

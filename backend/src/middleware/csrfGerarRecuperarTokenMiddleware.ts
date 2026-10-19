@@ -14,7 +14,7 @@ export const csrfGerarTokenMiddleware = (
 
         res.cookie("csrfToken", csrfToken, {
             httpOnly: true,
-            secure: true,
+            secure: false,
             sameSite: "strict"
         });
     }
